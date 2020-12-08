@@ -35,8 +35,5 @@ func Load() {
 		os.Getenv("DB_PORT"),
 		os.Getenv("DB_NAME"),
 	)
-
-	fmt.Println(DBURL)
-
 	SECRETKEY = []byte(os.Getenv("API_SECRET"))
 }

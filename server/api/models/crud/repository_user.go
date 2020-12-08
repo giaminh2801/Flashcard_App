@@ -10,6 +10,10 @@ import (
 // UserRepository interface for User CRUD
 type UserRepository interface {
 	Save(models.User) (models.User, error)
+	FindAll() ([]models.User, error)
+	FindByID(uint64) (models.User, error)
+	Update(uint64, models.User) (int64, error)
+	Delete(uint64) (int64, error)
 }
 
 // RepositoryUsersCRUD is the struct for the User CRUD
@@ -43,4 +47,120 @@ func (r *RepositoryUsersCRUD) Save(user models.User) (models.User, error) {
 		return user, nil
 	}
 	return models.User{}, err
+}
+
+// FindAll returns all users in our database
+func (r *RepositoryUsersCRUD) FindAll() ([]models.User, error) {
+	var err error
+	users := []models.User{}
+	user := models.User{}
+	done := make(chan bool)
+	go func(ch chan<- bool) {
+		defer close(ch)
+
+		rows, err := r.db.Query(database.GetAllUser)
+		if err != nil {
+			ch <- false
+			return
+		}
+		for rows.Next() {
+			err = rows.Scan(&user.ID, &user.Nickname, &user.Email, &user.Password)
+			if err != nil {
+				ch <- false
+				return
+			}
+			users = append(users, user)
+		}
+		if err = rows.Err(); err != nil {
+			ch <- false
+			return
+		}
+		ch <- true
+	}(done)
+	if channels.OK(done) {
+		return users, nil
+	}
+	return nil, err
+}
+
+// FindByID returns a single user from database
+func (r *RepositoryUsersCRUD) FindByID(userID uint64) (models.User, error) {
+	var err error
+	user := models.User{}
+	done := make(chan bool)
+	go func(ch chan<- bool) {
+		defer close(ch)
+
+		row := r.db.QueryRow(database.GetOneUser, userID)
+		err = row.Scan(&user.ID, &user.Nickname, &user.Email, &user.Password)
+		if err != nil {
+			ch <- false
+			return
+		}
+		if err = row.Err(); err != nil {
+			ch <- false
+			return
+		}
+		ch <- true
+	}(done)
+	if channels.OK(done) {
+		return user, nil
+	}
+
+	return models.User{}, err
+}
+
+// Update an user in Database
+func (r *RepositoryUsersCRUD) Update(userID uint64, user models.User) (int64, error) {
+	var (
+		err          error
+		rowsAffected int64
+	)
+	done := make(chan bool)
+	go func(ch chan<- bool) {
+		defer close(ch)
+		result, err := r.db.Exec(database.UpdateUser, userID, user.Nickname, user.Email)
+		if err != nil {
+			ch <- false
+			return
+		}
+		rowsAffected, err = result.RowsAffected()
+		if err != nil {
+			ch <- false
+			return
+		}
+		ch <- true
+	}(done)
+	if channels.OK(done) {
+		return rowsAffected, nil
+	}
+	return 0, err
+}
+
+// Delete an user from Database
+func (r *RepositoryUsersCRUD) Delete(userID uint64) (int64, error) {
+	var (
+		err          error
+		rowsAffected int64
+	)
+	done := make(chan bool)
+	go func(ch chan<- bool) {
+		defer close(ch)
+		result, err := r.db.Exec(database.DeleteUser, userID)
+		if err != nil {
+			ch <- false
+			return
+		}
+		rowsAffected, err = result.RowsAffected()
+		if err != nil {
+			ch <- false
+			return
+		}
+		ch <- true
+
+	}(done)
+	if channels.OK(done) {
+		return rowsAffected, nil
+	}
+	return 0, err
 }

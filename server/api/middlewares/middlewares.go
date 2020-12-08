@@ -1,6 +1,10 @@
 package middlewares
 
 import (
+	"context"
+	"go-flashcard-api/api/auth"
+	"go-flashcard-api/api/models"
+	"go-flashcard-api/api/utils/types"
 	"go-flashcard-api/config"
 	"log"
 	"net/http"
@@ -23,5 +27,23 @@ func SetMiddlewareJSON(next http.HandlerFunc) http.HandlerFunc {
 		w.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS, GET, PUT")
 		w.Header().Set("Content-Type", "application/json")
 		next(w, r)
+	}
+}
+
+// SetMiddlewareAuthentication authorize an access
+func SetMiddlewareAuthentication(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		token := auth.ExtractToken(w, r)
+		if token == nil {
+			return
+		}
+		if token.Valid {
+			ctx := context.WithValue(
+				r.Context(),
+				types.UserKey("user"),
+				token.Claims.(*models.Claim).User,
+			)
+			next(w, r.WithContext(ctx))
+		}
 	}
 }
