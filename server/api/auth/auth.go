@@ -23,7 +23,7 @@ func SignIn(email, password string) (string, error) {
 		defer db.Close()
 
 		row := db.QueryRow(database.LoginQuery, email)
-		err = row.Scan(&user.ID, &user.Nickname, &user.Email, &user.Password)
+		err = row.Scan(&user.ID, &user.Nickname, &user.Email, &user.Password, &user.CreatedAt, &user.UpdatedAt)
 		if err != nil {
 			ch <- false
 			return

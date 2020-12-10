@@ -2,8 +2,11 @@ package crud
 
 import (
 	"database/sql"
+	"time"
+
 	"go-flashcard-api/api/database"
 	"go-flashcard-api/api/models"
+	"go-flashcard-api/api/security"
 	"go-flashcard-api/api/utils/channels"
 )
 
@@ -64,7 +67,7 @@ func (r *RepositoryUsersCRUD) FindAll() ([]models.User, error) {
 			return
 		}
 		for rows.Next() {
-			err = rows.Scan(&user.ID, &user.Nickname, &user.Email, &user.Password)
+			err = rows.Scan(&user.ID, &user.Nickname, &user.Email, &user.Password, &user.CreatedAt, &user.UpdatedAt)
 			if err != nil {
 				ch <- false
 				return
@@ -92,7 +95,7 @@ func (r *RepositoryUsersCRUD) FindByID(userID uint64) (models.User, error) {
 		defer close(ch)
 
 		row := r.db.QueryRow(database.GetOneUser, userID)
-		err = row.Scan(&user.ID, &user.Nickname, &user.Email, &user.Password)
+		err = row.Scan(&user.ID, &user.Nickname, &user.Email, &user.Password, &user.CreatedAt, &user.UpdatedAt)
 		if err != nil {
 			ch <- false
 			return
@@ -119,7 +122,14 @@ func (r *RepositoryUsersCRUD) Update(userID uint64, user models.User) (int64, er
 	done := make(chan bool)
 	go func(ch chan<- bool) {
 		defer close(ch)
-		result, err := r.db.Exec(database.UpdateUser, userID, user.Nickname, user.Email)
+		//Hashing new password
+		password, err := security.Hash(user.Password)
+		if err != nil {
+			ch <- false
+			return
+		}
+
+		result, err := r.db.Exec(database.UpdateUser, userID, user.Nickname, user.Email, password, time.Now())
 		if err != nil {
 			ch <- false
 			return

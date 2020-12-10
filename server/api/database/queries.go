@@ -8,6 +8,6 @@ const (
 	LoginQuery      = `SELECT * FROM users WHERE email = $1`
 	GetAllUser      = `SELECT * FROM users`
 	GetOneUser      = `SELECT * FROM users WHERE id = $1`
-	UpdateUser      = `UPDATE users SET nickname=$2, email=$3 WHERE id=$1`
+	UpdateUser      = `UPDATE users SET nickname=$2, email=$3, password=$4, updated_at=$5 WHERE id=$1`
 	DeleteUser      = `DELETE FROM users WHERE id = $1`
 )
