@@ -17,6 +17,12 @@ func Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	err = user.Validate("login")
+	if err != nil {
+		responses.ERROR(w, http.StatusUnprocessableEntity, err)
+		return
+	}
+
 	token, err := auth.SignIn(user.Email, user.Password)
 	if err != nil {
 		responses.ERROR(w, http.StatusUnprocessableEntity, err)
