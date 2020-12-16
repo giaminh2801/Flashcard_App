@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"errors"
 	"go-flashcard-api/api/database"
 	"go-flashcard-api/api/models"
 	"go-flashcard-api/api/security"
@@ -38,6 +39,7 @@ func SignIn(email, password string) (models.User, *TokenDetails, error) {
 
 		err = security.VerifyPassword(user.Password, password)
 		if err != nil {
+			err = errors.New("Password isn't correct, please try again")
 			*p_err = err
 			ch <- false
 			return

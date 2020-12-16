@@ -2,6 +2,7 @@ package crud
 
 import (
 	"database/sql"
+	"errors"
 	"time"
 
 	"go-flashcard-api/api/database"
@@ -43,6 +44,9 @@ func (r *RepositoryUsersCRUD) Save(user models.User) (models.User, error) {
 		}
 		_, err = r.db.Exec(database.CreateUserQuery, user.Nickname, user.Email, user.Password)
 		if err != nil {
+			if err.Error() == "pq: duplicate key value violates unique constraint \"users_email_key\"" {
+				err = errors.New("Email is already existed, please use another email")
+			}
 			*p_err = err
 			ch <- false
 			return
@@ -63,7 +67,6 @@ func (r *RepositoryUsersCRUD) FindAll() ([]models.User, error) {
 	done := make(chan bool)
 	go func(ch chan<- bool, p_err *error) {
 		defer close(ch)
-
 		rows, err := r.db.Query(database.GetAllUser)
 		if err != nil {
 			*p_err = err
@@ -99,7 +102,6 @@ func (r *RepositoryUsersCRUD) FindByID(userID uint64) (models.User, error) {
 	done := make(chan bool)
 	go func(ch chan<- bool, p_err *error) {
 		defer close(ch)
-
 		row := r.db.QueryRow(database.GetOneUser, userID)
 		err = row.Scan(&user.ID, &user.Nickname, &user.Email, &user.Password, &user.CreatedAt, &user.UpdatedAt)
 		if err != nil {
@@ -117,7 +119,6 @@ func (r *RepositoryUsersCRUD) FindByID(userID uint64) (models.User, error) {
 	if channels.OK(done) {
 		return user, nil
 	}
-
 	return models.User{}, err
 }
 
@@ -130,9 +131,11 @@ func (r *RepositoryUsersCRUD) Update(userID uint64, user models.User) (int64, er
 	done := make(chan bool)
 	go func(ch chan<- bool, p_err *error) {
 		defer close(ch)
-
 		result, err := r.db.Exec(database.UpdateUser, userID, user.Nickname, user.Email, time.Now())
 		if err != nil {
+			if err.Error() == "pq: duplicate key value violates unique constraint \"users_email_key\"" {
+				err = errors.New("Email is already existed, please use another email")
+			}
 			*p_err = err
 			ch <- false
 			return
@@ -175,6 +178,7 @@ func (r *RepositoryUsersCRUD) UpdatePassword(userID uint64, oldPassword string, 
 		}
 		err = security.VerifyPassword(oldHashedPassword, oldPassword)
 		if err != nil {
+			err = errors.New("Your old password isn't correct")
 			*p_err = err
 			ch <- false
 			return
@@ -227,7 +231,6 @@ func (r *RepositoryUsersCRUD) Delete(userID uint64) (int64, error) {
 			return
 		}
 		ch <- true
-
 	}(done, &err)
 	if channels.OK(done) {
 		return rowsAffected, nil
