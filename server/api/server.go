@@ -18,6 +18,6 @@ func Run() {
 }
 
 func listen(port int) {
-	r := router.New()
-	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", port), r))
+	r, handler := router.New()
+	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", port), handler(r)))
 }

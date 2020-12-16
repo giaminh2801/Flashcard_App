@@ -4,7 +4,7 @@ import (
 	"github.com/dgrijalva/jwt-go"
 )
 
-// Claim is the token payload
+// ATClaim struct
 type Claim struct {
 	User User `json:"user"`
 	jwt.StandardClaims

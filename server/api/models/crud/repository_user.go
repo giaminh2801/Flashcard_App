@@ -16,6 +16,7 @@ type UserRepository interface {
 	FindAll() ([]models.User, error)
 	FindByID(uint64) (models.User, error)
 	Update(uint64, models.User) (int64, error)
+	UpdatePassword(uint64, string, string) (int64, error)
 	Delete(uint64) (int64, error)
 }
 
@@ -33,19 +34,21 @@ func NewRepositoryUsersCRUD(db *sql.DB) *RepositoryUsersCRUD {
 func (r *RepositoryUsersCRUD) Save(user models.User) (models.User, error) {
 	var err error
 	done := make(chan bool)
-	go func(ch chan<- bool) {
+	go func(ch chan<- bool, p_err *error) {
 		defer close(ch)
 		if err = user.BeforeSave(); err != nil {
+			*p_err = err
 			ch <- false
 			return
 		}
 		_, err = r.db.Exec(database.CreateUserQuery, user.Nickname, user.Email, user.Password)
 		if err != nil {
+			*p_err = err
 			ch <- false
 			return
 		}
 		ch <- true
-	}(done)
+	}(done, &err)
 	if channels.OK(done) {
 		return user, nil
 	}
@@ -58,28 +61,31 @@ func (r *RepositoryUsersCRUD) FindAll() ([]models.User, error) {
 	users := []models.User{}
 	user := models.User{}
 	done := make(chan bool)
-	go func(ch chan<- bool) {
+	go func(ch chan<- bool, p_err *error) {
 		defer close(ch)
 
 		rows, err := r.db.Query(database.GetAllUser)
 		if err != nil {
+			*p_err = err
 			ch <- false
 			return
 		}
 		for rows.Next() {
 			err = rows.Scan(&user.ID, &user.Nickname, &user.Email, &user.Password, &user.CreatedAt, &user.UpdatedAt)
 			if err != nil {
+				*p_err = err
 				ch <- false
 				return
 			}
 			users = append(users, user)
 		}
 		if err = rows.Err(); err != nil {
+			*p_err = err
 			ch <- false
 			return
 		}
 		ch <- true
-	}(done)
+	}(done, &err)
 	if channels.OK(done) {
 		return users, nil
 	}
@@ -91,21 +97,23 @@ func (r *RepositoryUsersCRUD) FindByID(userID uint64) (models.User, error) {
 	var err error
 	user := models.User{}
 	done := make(chan bool)
-	go func(ch chan<- bool) {
+	go func(ch chan<- bool, p_err *error) {
 		defer close(ch)
 
 		row := r.db.QueryRow(database.GetOneUser, userID)
 		err = row.Scan(&user.ID, &user.Nickname, &user.Email, &user.Password, &user.CreatedAt, &user.UpdatedAt)
 		if err != nil {
+			*p_err = err
 			ch <- false
 			return
 		}
 		if err = row.Err(); err != nil {
+			*p_err = err
 			ch <- false
 			return
 		}
 		ch <- true
-	}(done)
+	}(done, &err)
 	if channels.OK(done) {
 		return user, nil
 	}
@@ -120,27 +128,77 @@ func (r *RepositoryUsersCRUD) Update(userID uint64, user models.User) (int64, er
 		rowsAffected int64
 	)
 	done := make(chan bool)
-	go func(ch chan<- bool) {
+	go func(ch chan<- bool, p_err *error) {
 		defer close(ch)
-		//Hashing new password
-		password, err := security.Hash(user.Password)
-		if err != nil {
-			ch <- false
-			return
-		}
 
-		result, err := r.db.Exec(database.UpdateUser, userID, user.Nickname, user.Email, password, time.Now())
+		result, err := r.db.Exec(database.UpdateUser, userID, user.Nickname, user.Email, time.Now())
 		if err != nil {
+			*p_err = err
 			ch <- false
 			return
 		}
 		rowsAffected, err = result.RowsAffected()
 		if err != nil {
+			*p_err = err
 			ch <- false
 			return
 		}
 		ch <- true
-	}(done)
+	}(done, &err)
+	if channels.OK(done) {
+		return rowsAffected, nil
+	}
+	return 0, err
+}
+
+// UpdatePassword updates user's password in Database
+func (r *RepositoryUsersCRUD) UpdatePassword(userID uint64, oldPassword string, newPassword string) (int64, error) {
+	var (
+		err               error
+		rowsAffected      int64
+		oldHashedPassword string
+	)
+	done := make(chan bool)
+	go func(ch chan<- bool, p_err *error) {
+		defer close(ch)
+		row := r.db.QueryRow(database.GetPassword, userID)
+		err = row.Scan(&oldHashedPassword)
+		if err != nil {
+			*p_err = err
+			ch <- false
+			return
+		}
+		if err = row.Err(); err != nil {
+			*p_err = err
+			ch <- false
+			return
+		}
+		err = security.VerifyPassword(oldHashedPassword, oldPassword)
+		if err != nil {
+			*p_err = err
+			ch <- false
+			return
+		}
+		newHashedPassword, err := security.Hash(newPassword)
+		if err != nil {
+			*p_err = err
+			ch <- false
+			return
+		}
+		result, err := r.db.Exec(database.UpdatePassword, userID, newHashedPassword, time.Now())
+		if err != nil {
+			*p_err = err
+			ch <- false
+			return
+		}
+		rowsAffected, err = result.RowsAffected()
+		if err != nil {
+			*p_err = err
+			ch <- false
+			return
+		}
+		ch <- true
+	}(done, &err)
 	if channels.OK(done) {
 		return rowsAffected, nil
 	}
@@ -154,21 +212,23 @@ func (r *RepositoryUsersCRUD) Delete(userID uint64) (int64, error) {
 		rowsAffected int64
 	)
 	done := make(chan bool)
-	go func(ch chan<- bool) {
+	go func(ch chan<- bool, p_err *error) {
 		defer close(ch)
 		result, err := r.db.Exec(database.DeleteUser, userID)
 		if err != nil {
+			*p_err = err
 			ch <- false
 			return
 		}
 		rowsAffected, err = result.RowsAffected()
 		if err != nil {
+			*p_err = err
 			ch <- false
 			return
 		}
 		ch <- true
 
-	}(done)
+	}(done, &err)
 	if channels.OK(done) {
 		return rowsAffected, nil
 	}

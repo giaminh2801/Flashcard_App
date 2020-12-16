@@ -12,7 +12,8 @@ import (
 // PORT server port
 var (
 	PORT      = 0
-	SECRETKEY []byte
+	ATSECRET  []byte // Access token secret key
+	RTSECRET  []byte // Refresh token secret key
 	DBURL     = ""
 	CLIENTURL = "http://localhost:3000"
 )
@@ -35,5 +36,6 @@ func Load() {
 		os.Getenv("DB_PORT"),
 		os.Getenv("DB_NAME"),
 	)
-	SECRETKEY = []byte(os.Getenv("API_SECRET"))
+	ATSECRET = []byte(os.Getenv("ACCESS_SECRET"))
+	RTSECRET = []byte(os.Getenv("REFRESH_SECRET"))
 }

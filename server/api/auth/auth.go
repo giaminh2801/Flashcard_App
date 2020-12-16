@@ -8,15 +8,16 @@ import (
 )
 
 // SignIn method
-func SignIn(email, password string) (string, error) {
+func SignIn(email, password string) (models.User, *TokenDetails, error) {
 	user := models.User{}
 	var err error
 	done := make(chan bool)
 
-	go func(ch chan<- bool) {
+	go func(ch chan<- bool, p_err *error) {
 		defer close(ch)
 		db, err := database.Connect()
 		if err != nil {
+			*p_err = err
 			ch <- false
 			return
 		}
@@ -25,26 +26,29 @@ func SignIn(email, password string) (string, error) {
 		row := db.QueryRow(database.LoginQuery, email)
 		err = row.Scan(&user.ID, &user.Nickname, &user.Email, &user.Password, &user.CreatedAt, &user.UpdatedAt)
 		if err != nil {
+			*p_err = err
 			ch <- false
 			return
 		}
 		if err = row.Err(); err != nil {
+			*p_err = err
 			ch <- false
 			return
 		}
 
 		err = security.VerifyPassword(user.Password, password)
 		if err != nil {
+			*p_err = err
 			ch <- false
 			return
 		}
 		ch <- true
-	}(done)
+	}(done, &err)
 
 	if channels.OK(done) {
 		user.Password = ""
-		return GenerateJWT(user)
+		tokenDetails, err := GenerateJWT(user)
+		return user, tokenDetails, err
 	}
-
-	return "", err
+	return models.User{}, nil, err
 }
